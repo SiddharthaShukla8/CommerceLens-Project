@@ -1,0 +1,7 @@
+Total GMV = CALCULATE(SUM('fact_order_items'[price]), 'fact_orders'[order_status] = "delivered")
+Delivered Orders = CALCULATE(DISTINCTCOUNT('fact_orders'[order_id]), 'fact_orders'[order_status] = "delivered")
+AOV = DIVIDE([Total GMV], [Delivered Orders])
+Unique Customers = CALCULATE(DISTINCTCOUNT('dim_customers'[customer_unique_id]), 'fact_orders'[order_status] = "delivered")
+Monthly GMV = [Total GMV]
+Previous Month GMV = CALCULATE([Total GMV], DATEADD('Date'[Date], -1, MONTH))
+MoM Growth = DIVIDE([Monthly GMV] - [Previous Month GMV], [Previous Month GMV])
