@@ -5,7 +5,8 @@ def kpi_card(label: str, value: str, help_text: str = "") -> None:
 
 def inject_css() -> None:
     st.markdown("""<style>
-    .stApp { background: #f6f8fc; } .block-container { padding-top: 2rem; max-width: 1400px; }
+    .stApp { background: #f6f8fc; color: #132b4f; } .block-container { padding-top: 2rem; max-width: 1400px; }
+    .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp label { color: #132b4f; }
     .kpi { background: white; border: 1px solid #e6eaf2; border-radius: 12px; padding: 16px; min-height: 112px; box-shadow: 0 1px 3px #dce2ef55; }
     .kpi-label { color:#526176; font-size:.85rem; font-weight:600; }.kpi-value { color:#132b4f; font-size:1.7rem; font-weight:700; margin-top:6px; }.kpi-help {color:#7d8999;font-size:.72rem;margin-top:5px;}
     </style>""", unsafe_allow_html=True)

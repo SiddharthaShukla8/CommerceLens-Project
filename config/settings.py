@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / os.getenv("DATA_DIR", "data")
 RAW_DIR, PROCESSED_DIR, EXPORT_DIR = DATA_DIR / "raw", DATA_DIR / "processed", DATA_DIR / "exports"
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://commercelens:commercelens@localhost:5432/commercelens")
+DATABASE_SSLMODE = os.getenv("DATABASE_SSLMODE", "prefer")
+DATABASE_CONNECT_TIMEOUT = int(os.getenv("DATABASE_CONNECT_TIMEOUT", "10"))
 REQUIRED_FILES = {
     "customers": "olist_customers_dataset.csv", "orders": "olist_orders_dataset.csv",
     "order_items": "olist_order_items_dataset.csv", "payments": "olist_order_payments_dataset.csv",
