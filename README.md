@@ -26,6 +26,10 @@ Run `python -m src.cli validate` to profile and validate the source data before 
 
 `fact_order_items` is the GMV grain; payment records are never joined to items for revenue. Completed merchandise GMV means delivered item price, not profit. Repeat rate is customers with two or more delivered orders divided by customers with at least one delivered order. See `docs/KPI_DICTIONARY.md` for details.
 
+## Verification
+
+Use `.venv/bin/pytest -q` after installation. The supplied tests validate KPI grain safety, RFM calculation, reproducible experiment analysis, and cleaning/quality behavior. `docs/ARCHITECTURE.md` documents the data flow and database fact grains.
+
 ## Commands
 
 `make install`, `make validate`, `make pipeline`, `make test`, `make dashboard`, and `make report` are convenience aliases for the documented commands.
