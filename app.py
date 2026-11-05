@@ -67,7 +67,9 @@ elif page == "Sales & products":
     st.title("Sales & product analytics")
     category = st.selectbox("Drill into category", ["All"] + sorted(delivered.category.dropna().unique().tolist()))
     visual = delivered if category == "All" else delivered[delivered.category == category]
-    daily = visual.groupby(visual.order_purchase_timestamp.dt.date, as_index=False).merchandise_gmv.sum(); daily.columns = ["date", "gmv"]
+    daily = (visual.assign(date=visual.order_purchase_timestamp.dt.date)
+             .groupby("date", as_index=False)
+             .agg(gmv=("merchandise_gmv", "sum")))
     left,right = st.columns(2); left.plotly_chart(px.line(daily, x="date", y="gmv", title="Daily GMV"), width="stretch", theme=None); right.plotly_chart(px.bar(visual.groupby("category",as_index=False).agg(gmv=("merchandise_gmv","sum"),units=("units","sum")).sort_values("gmv",ascending=False).head(15),x="category",y="gmv",title="Category GMV"), width="stretch", theme=None)
     st.dataframe(visual.groupby("category",as_index=False).agg(gmv=("merchandise_gmv","sum"),units=("units","sum"),average_order_value=("merchandise_gmv","mean")).sort_values("gmv",ascending=False), width="stretch")
 elif page == "Customer intelligence":
