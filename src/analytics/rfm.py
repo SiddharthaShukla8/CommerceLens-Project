@@ -3,7 +3,7 @@ import pandas as pd
 
 def build_rfm(mart: pd.DataFrame) -> pd.DataFrame:
     orders = mart[mart.order_status.eq("delivered")].dropna(subset=["order_purchase_timestamp", "customer_unique_id"])
-    reference = orders.order_purchase_timestamp.max() + pd.Timedelta(days=1)
+    reference = orders.order_purchase_timestamp.max() + pd.DateOffset(days=1)
     rfm = orders.groupby("customer_unique_id").agg(recency=("order_purchase_timestamp", lambda x: (reference - x.max()).days), frequency=("order_id", "nunique"), monetary=("merchandise_gmv", "sum")).reset_index()
     if rfm.empty: return rfm
     n = min(5, rfm.customer_unique_id.nunique())
