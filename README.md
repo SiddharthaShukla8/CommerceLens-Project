@@ -12,12 +12,12 @@ CommerceLens is an end-to-end e-commerce intelligence platform built with Python
 
 ## Quick start
 
-1. Create and activate a Python 3.11+ virtual environment.
+1. Create and activate a Python 3.11+ virtual environment: `python3 -m venv .venv && source .venv/bin/activate`.
 2. `pip install -r requirements.txt`
 3. Copy `.env.example` to `.env`.
 4. Download the nine Olist CSV files from [Kaggle](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) and place them in `data/raw/` without renaming them.
-5. `docker compose up -d`
-6. `python -m src.cli run-all`
+5. Start Docker Desktop, then run `docker compose up -d`.
+6. `python -m src.cli run-all --database`
 7. `streamlit run app.py`
 
 Run `python -m src.cli validate` to profile and validate the source data before loading it. The dashboard deliberately displays a setup message when processed data is absent; it never substitutes made-up business data.
