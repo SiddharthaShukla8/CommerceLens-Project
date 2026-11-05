@@ -1,0 +1,2 @@
+-- New versus returning customer orders by month.
+WITH x AS (SELECT customer_unique_id,date_trunc('month',order_purchase_timestamp)::date month,MIN(date_trunc('month',order_purchase_timestamp)::date) OVER(PARTITION BY customer_unique_id) cohort FROM analytics.v_order_value WHERE order_status='delivered') SELECT month,COUNT(*) FILTER(WHERE month=cohort) new_orders,COUNT(*) FILTER(WHERE month>cohort) returning_orders FROM x GROUP BY 1 ORDER BY 1;

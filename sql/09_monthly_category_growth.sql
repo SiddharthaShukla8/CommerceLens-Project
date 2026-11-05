@@ -1,0 +1,2 @@
+-- Monthly category GMV and period-over-period change.
+WITH x AS (SELECT date_trunc('month',o.order_purchase_timestamp)::date month,p.product_category_name_english category,SUM(i.price) gmv FROM analytics.fact_order_items i JOIN analytics.fact_orders o USING(order_id) JOIN analytics.dim_products p USING(product_id) WHERE o.order_status='delivered' GROUP BY 1,2) SELECT *,gmv-LAG(gmv) OVER(PARTITION BY category ORDER BY month) growth FROM x;

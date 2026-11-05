@@ -1,0 +1,2 @@
+-- State-wise delivery performance for eligible deliveries.
+SELECT customer_state,COUNT(*) delivered_orders,AVG(order_delivered_customer_date-order_purchase_timestamp) avg_delivery_interval,AVG((order_delivered_customer_date<=order_estimated_delivery_date)::int)*100 on_time_pct FROM analytics.v_order_value WHERE order_status='delivered' AND order_delivered_customer_date IS NOT NULL AND order_estimated_delivery_date IS NOT NULL GROUP BY 1 ORDER BY 2 DESC;

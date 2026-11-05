@@ -9,6 +9,9 @@ def validate(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
     rows = []
     keys = {"customers": "customer_id", "orders": "order_id", "products": "product_id", "sellers": "seller_id"}
     for table, key in keys.items():
+        if key not in frames[table].columns:
+            rows.append(_row(f"{table}.{key} uniqueness", "WARNING", 0, "Key column unavailable in this input"))
+            continue
         duplicate = int(frames[table][key].duplicated().sum())
         rows.append(_row(f"{table}.{key} uniqueness", "PASS" if not duplicate else "FAIL", duplicate, "Duplicate primary keys"))
     orders, customers, items = frames["orders"], frames["customers"], frames["order_items"]

@@ -1,0 +1,2 @@
+-- Customer cohort retention percentages.
+WITH x AS (SELECT customer_unique_id,date_trunc('month',order_purchase_timestamp)::date month,MIN(date_trunc('month',order_purchase_timestamp)::date) OVER(PARTITION BY customer_unique_id) cohort FROM analytics.v_order_value WHERE order_status='delivered'), a AS (SELECT cohort,month,COUNT(DISTINCT customer_unique_id) users FROM x GROUP BY 1,2) SELECT cohort,month,users,100.0*users/FIRST_VALUE(users) OVER(PARTITION BY cohort ORDER BY month) retention_pct FROM a;

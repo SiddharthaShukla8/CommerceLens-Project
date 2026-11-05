@@ -1,0 +1,2 @@
+-- Top five products inside each category.
+WITH x AS (SELECT p.product_category_name_english category,i.product_id,SUM(i.price) gmv FROM analytics.fact_order_items i JOIN analytics.fact_orders o USING(order_id) JOIN analytics.dim_products p USING(product_id) WHERE o.order_status='delivered' GROUP BY 1,2) SELECT * FROM (SELECT *,DENSE_RANK() OVER(PARTITION BY category ORDER BY gmv DESC) rank FROM x) r WHERE rank<=5;
