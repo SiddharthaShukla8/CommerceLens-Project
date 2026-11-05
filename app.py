@@ -1,9 +1,8 @@
 """CommerceLens interactive business intelligence dashboard."""
-from pathlib import Path
-import pandas as pd
 import plotly.express as px
 import streamlit as st
 from config.settings import EXPORT_DIR
+from dashboard.data import load_dashboard_data
 from src.analytics.mart import kpis
 from src.analytics.ab_testing import synthetic_experiment, analyse_experiment
 from src.analytics.insights import generate_insights
@@ -15,9 +14,7 @@ px.defaults.template = "plotly_white"
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_data(_: tuple[float, ...]):
-    files = [EXPORT_DIR / "order_mart.csv", EXPORT_DIR / "rfm_segments.csv", EXPORT_DIR / "cohort_retention.csv", EXPORT_DIR / "data_quality.csv"]
-    if not all(path.exists() for path in files): return None
-    return (pd.read_csv(files[0], parse_dates=["order_purchase_timestamp", "order_delivered_customer_date", "order_estimated_delivery_date"]), pd.read_csv(files[1]), pd.read_csv(files[2]), pd.read_csv(files[3]))
+    return load_dashboard_data()
 
 required_paths = [EXPORT_DIR / name for name in ("order_mart.csv", "rfm_segments.csv", "cohort_retention.csv", "data_quality.csv")]
 data = load_data(tuple(path.stat().st_mtime if path.exists() else 0 for path in required_paths))
@@ -28,7 +25,7 @@ with st.sidebar:
     st.divider(); st.caption("Olist public dataset · independent portfolio project")
 if data is None and page != "Experiment analytics":
     st.title("Your analytics workspace is ready")
-    st.info("Download the Olist CSV files into `data/raw/`, then run `python -m src.cli run-all`. CommerceLens will then calculate every KPI from your processed data.")
+    st.info("Load the Olist CSV files with the ETL pipeline or configure a PostgreSQL database containing the CommerceLens analytics schema.")
     st.code("docker compose up -d\npython -m src.cli run-all\nstreamlit run app.py")
     st.stop()
 
