@@ -4,12 +4,22 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def _setting(name: str, default: str | None = None) -> str | None:
+    """Read environment variables locally and Streamlit secrets when deployed."""
+    if value := os.getenv(name):
+        return value
+    try:
+        import streamlit as st
+        return st.secrets.get(name, default)
+    except Exception:
+        return default
 ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / os.getenv("DATA_DIR", "data")
+DATA_DIR = ROOT / (_setting("DATA_DIR", "data") or "data")
 RAW_DIR, PROCESSED_DIR, EXPORT_DIR = DATA_DIR / "raw", DATA_DIR / "processed", DATA_DIR / "exports"
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://commercelens:commercelens@localhost:5432/commercelens")
-DATABASE_SSLMODE = os.getenv("DATABASE_SSLMODE", "prefer")
-DATABASE_CONNECT_TIMEOUT = int(os.getenv("DATABASE_CONNECT_TIMEOUT", "10"))
+DATABASE_URL = _setting("DATABASE_URL", "postgresql+psycopg://commercelens:commercelens@localhost:5432/commercelens") or ""
+DATABASE_SSLMODE = _setting("DATABASE_SSLMODE", "prefer") or "prefer"
+DATABASE_CONNECT_TIMEOUT = int(_setting("DATABASE_CONNECT_TIMEOUT", "10") or 10)
 REQUIRED_FILES = {
     "customers": "olist_customers_dataset.csv", "orders": "olist_orders_dataset.csv",
     "order_items": "olist_order_items_dataset.csv", "payments": "olist_order_payments_dataset.csv",
