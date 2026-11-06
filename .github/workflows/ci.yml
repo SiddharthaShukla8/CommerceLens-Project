@@ -22,6 +22,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://commercelens:test-password@localhost:5432/commercelens_test
       RUN_POSTGRES_TESTS: '1'
+      COMMERCELENS_TEST_MODE: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

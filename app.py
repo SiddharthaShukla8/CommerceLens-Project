@@ -64,32 +64,35 @@ with st.sidebar:
     st.divider()
     st.caption("Olist public dataset · independent portfolio project")
 
-if data is None and page != "Experiment analytics":
-    st.title("Your analytics workspace is ready")
-    st.info("Load the Olist CSV files with the ETL pipeline or configure a PostgreSQL database containing the CommerceLens analytics schema.")
-    st.code("docker compose up -d\npython -m src.cli run-all --database\nstreamlit run app.py")
-    st.stop()
-
-# Extract mart and item_mart if data is present
+# Extract mart, item_mart, quality
 mart = None
 item_mart = None
 quality = None
 if data is not None:
     mart, item_mart, _, _, quality = data
 
-# Initialize global filter defaults
-if mart is not None:
+# Initialize global filter defaults unconditionally so sidebar is always renderable
+if mart is not None and not mart.empty:
     min_date = mart.order_purchase_timestamp.min().date()
     max_date = mart.order_purchase_timestamp.max().date()
-    st.session_state["_default_min_date"] = min_date
-    st.session_state["_default_max_date"] = max_date
-    available_states = sorted(mart.customer_state.dropna().unique())
-    available_statuses = sorted(mart.order_status.dropna().unique())
+    available_states = sorted(mart.customer_state.dropna().unique().tolist())
+    available_statuses = sorted(mart.order_status.dropna().unique().tolist())
 else:
     min_date = pd.Timestamp("2016-01-01").date()
     max_date = pd.Timestamp("2018-12-31").date()
     available_states = []
     available_statuses = []
+
+if "_default_min_date" not in st.session_state:
+    st.session_state["_default_min_date"] = min_date
+else:
+    # Update default bounds if data was loaded and bounds changed
+    if mart is not None and not mart.empty:
+        st.session_state["_default_min_date"] = min_date
+        st.session_state["_default_max_date"] = max_date
+
+if "_default_max_date" not in st.session_state:
+    st.session_state["_default_max_date"] = max_date
 
 if "global_date_range" not in st.session_state:
     st.session_state["global_date_range"] = (min_date, max_date)
@@ -119,6 +122,12 @@ with st.sidebar:
         key="global_order_statuses",
     )
     st.button("Reset filters", on_click=_reset_filters, use_container_width=True)
+
+if data is None and page != "Experiment analytics":
+    st.title("Your analytics workspace is ready")
+    st.info("Load the Olist CSV files with the ETL pipeline or configure a PostgreSQL database containing the CommerceLens analytics schema.")
+    st.code("docker compose up -d\npython -m src.cli run-all --database\nstreamlit run app.py")
+    st.stop()
 
 if page == "Experiment analytics":
     st.title("Experiment analytics")
@@ -239,7 +248,13 @@ elif page == "Sales & products":
     category = st.selectbox("Product category", ["All"] + categories)
     category_items = delivered_items if category == "All" else delivered_items[delivered_items.category.eq(category)]
     products = sorted(category_items.product_id.dropna().unique().tolist())
-    product = st.selectbox("Product", ["All"] + products)
+    
+    def _format_product_label(pid: str) -> str:
+        if pid == "All":
+            return "All"
+        return f"Product {pid[:8]}…"
+
+    product = st.selectbox("Product", ["All"] + products, format_func=_format_product_label)
     visual = category_items if product == "All" else category_items[category_items.product_id.eq(product)]
     summary = _sales_summary(visual)
     sales_cards = [
@@ -251,33 +266,35 @@ elif page == "Sales & products":
     for column, item in zip(st.columns(4), sales_cards):
         with column:
             kpi_card(*item)
-    daily = visual.assign(date=visual.order_purchase_timestamp.dt.date).groupby("date", as_index=False).price.sum().rename(columns={"price": "gmv"})
-    weekly = visual.assign(week=visual.order_purchase_timestamp.dt.to_period("W").dt.start_time.dt.date).groupby("week", as_index=False).price.sum().rename(columns={"price": "gmv"})
+    daily = (visual.assign(date=visual.order_purchase_timestamp.dt.date)
+             .groupby("date", as_index=False).price.sum().rename(columns={"price": "gmv"})
+             .sort_values("date"))
+    weekly = (visual.assign(week=visual.order_purchase_timestamp.dt.to_period("W").dt.start_time.dt.date)
+              .groupby("week", as_index=False).price.sum().rename(columns={"price": "gmv"})
+              .sort_values("week"))
     category_totals = (delivered_items.groupby("category", as_index=False).agg(gmv=("price", "sum"), units=("order_item_id", "count"))
                        .sort_values("gmv", ascending=False))
     left, right = st.columns(2)
-    left.plotly_chart(
-        px.line(
-            daily,
-            x="date",
-            y="gmv",
-            title="Daily merchandise GMV",
-            labels={"date": "Date", "gmv": "GMV (R$)"},
-        ),
-        width="stretch",
-        theme=None,
+    fig_daily = px.line(
+        daily,
+        x="date",
+        y="gmv",
+        markers=True,
+        title="Daily merchandise GMV",
+        labels={"date": "Date", "gmv": "GMV (R$)"},
     )
-    right.plotly_chart(
-        px.line(
-            weekly,
-            x="week",
-            y="gmv",
-            title="Weekly merchandise GMV",
-            labels={"week": "Week starting", "gmv": "GMV (R$)"},
-        ),
-        width="stretch",
-        theme=None,
+    fig_daily.update_xaxes(type="category")
+    left.plotly_chart(fig_daily, width="stretch", theme=None)
+    fig_weekly = px.line(
+        weekly,
+        x="week",
+        y="gmv",
+        markers=True,
+        title="Weekly merchandise GMV",
+        labels={"week": "Week starting", "gmv": "GMV (R$)"},
     )
+    fig_weekly.update_xaxes(type="category")
+    right.plotly_chart(fig_weekly, width="stretch", theme=None)
     st.plotly_chart(
         px.bar(
             category_totals.head(15),
