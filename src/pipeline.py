@@ -8,7 +8,7 @@ from config.settings import RAW_DIR, PROCESSED_DIR, EXPORT_DIR
 from src.ingestion.reader import read_sources
 from src.cleaning.cleaner import clean_sources
 from src.validation.quality import validate
-from src.analytics.mart import build_order_mart
+from src.analytics.mart import build_item_mart, build_order_mart
 from src.analytics.rfm import build_rfm
 from src.analytics.cohort import build_cohorts
 from src.database.loader import load_to_postgres
@@ -25,6 +25,7 @@ def run(validate_only: bool = False, database: bool = False) -> dict:
             if validate_only:
                 return {"quality": quality, "audit": audit}
             mart = build_order_mart(clean)
+            item_mart = build_item_mart(clean)
             rfm, cohorts = build_rfm(mart), build_cohorts(mart)
             if database:
                 load_to_postgres(clean, mart)
@@ -32,6 +33,7 @@ def run(validate_only: bool = False, database: bool = False) -> dict:
             for name, frame in clean.items():
                 frame.to_csv(PROCESSED_DIR / f"{name}.csv", index=False)
             mart.to_csv(EXPORT_DIR / "order_mart.csv", index=False)
+            item_mart.to_csv(EXPORT_DIR / "item_mart.csv", index=False)
             rfm.to_csv(EXPORT_DIR / "rfm_segments.csv", index=False)
             cohorts.to_csv(EXPORT_DIR / "cohort_retention.csv", index=False)
             audit.to_csv(EXPORT_DIR / "cleaning_audit.csv", index=False)

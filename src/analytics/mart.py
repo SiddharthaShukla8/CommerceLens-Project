@@ -20,6 +20,28 @@ def build_order_mart(f: dict[str, pd.DataFrame]) -> pd.DataFrame:
     orders["on_time"] = np.where(eligible, orders.order_delivered_customer_date <= orders.order_estimated_delivery_date, np.nan)
     return orders
 
+
+def build_item_mart(f: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Build a delivered-sales-safe item-grain mart for product analysis.
+
+    Product and category filters must operate at item grain.  This mart is
+    intentionally separate from the order-grain KPI mart so filtering a
+    multi-item order does not accidentally attribute every item to one product.
+    """
+    product_columns = ["product_id", "product_category_name_english"]
+    products = f["products"][product_columns].rename(
+        columns={"product_category_name_english": "category"}
+    )
+    order_columns = [
+        "order_id", "customer_id", "order_status", "order_purchase_timestamp",
+        "order_delivered_customer_date", "order_estimated_delivery_date",
+    ]
+    customers = f["customers"][["customer_id", "customer_unique_id", "customer_state"]]
+    orders = f["orders"][order_columns].merge(customers, on="customer_id", how="left")
+    items = f["order_items"].merge(products, on="product_id", how="left")
+    items["category"] = items["category"].fillna("unknown")
+    return items.merge(orders, on="order_id", how="inner")
+
 def kpis(mart: pd.DataFrame) -> dict[str, float]:
     delivered = mart[mart.order_status.eq("delivered")].copy()
     customers = delivered.customer_unique_id.dropna()
