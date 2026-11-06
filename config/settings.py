@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / (_setting("DATA_DIR", "data") or "data")
 RAW_DIR, PROCESSED_DIR, EXPORT_DIR = DATA_DIR / "raw", DATA_DIR / "processed", DATA_DIR / "exports"
 DATABASE_URL = _setting("DATABASE_URL", "postgresql+psycopg://commercelens:commercelens@localhost:5433/commercelens") or ""
-DATABASE_SSLMODE = _setting("DATABASE_SSLMODE", "prefer") or "prefer"
+DATABASE_URL_UNPOOLED = _setting("DATABASE_URL_UNPOOLED", DATABASE_URL) or DATABASE_URL
+DATABASE_SSLMODE = _setting("DATABASE_SSLMODE")
 DATABASE_CONNECT_TIMEOUT = int(_setting("DATABASE_CONNECT_TIMEOUT", "10") or 10)
 REQUIRED_FILES = {
     "customers": "olist_customers_dataset.csv", "orders": "olist_orders_dataset.csv",

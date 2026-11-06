@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "build": "python3 -m compileall -q app.py config dashboard src"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "@neon/config": "^1.11.3",
+    "@neon/env": "^1.6.15"
+  }
+}

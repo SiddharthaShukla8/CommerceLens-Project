@@ -13,3 +13,5 @@ tmp/
 !reports/generated/.gitkeep
 *.log
 .streamlit/secrets.toml
+.neon
+node_modules/

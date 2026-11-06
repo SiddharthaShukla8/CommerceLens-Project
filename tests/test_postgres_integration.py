@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from sqlalchemy import create_engine, text
-from config.settings import ROOT
 from src.database.schema_manager import apply_migrations
 
 pytestmark = pytest.mark.skipif(os.getenv("RUN_POSTGRES_TESTS") != "1", reason="requires disposable PostgreSQL")
@@ -14,8 +13,6 @@ pytestmark = pytest.mark.skipif(os.getenv("RUN_POSTGRES_TESTS") != "1", reason="
 def integration_engine():
     engine = create_engine(os.environ["DATABASE_URL"])
     with engine.begin() as connection:
-        for filename in ["schema.sql", "indexes.sql", "views.sql"]:
-            connection.execute(text((ROOT / "database" / filename).read_text()))
         apply_migrations(connection)
     yield engine
     engine.dispose()

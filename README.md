@@ -83,12 +83,21 @@ streamlit run app.py
 
 The dashboard can use generated exports or a configured PostgreSQL analytics schema. If neither is available, it displays setup instructions rather than fabricating business results. See the [dataset setup guide](docs/DATASET_SETUP.md) for input details and the [deployment guide](docs/DEPLOYMENT_GUIDE.md) for hosted deployment options. The project is deployment-ready but is not currently deployed.
 
+### Use Neon PostgreSQL
+
+The app uses SQLAlchemy with psycopg. The dashboard reads `DATABASE_URL` (Neon's pooled connection); the ETL loader uses `DATABASE_URL_UNPOOLED` when present so schema setup and bulk loading use a direct connection. Both variables are loaded from `.env`, and TLS settings in the Neon connection URL are honored. Keep `.env` private.
+
+The Neon CLI requires Node.js 20.19 or newer; this repository pins Node 22.23.4 in `.nvmrc`. Run `nvm use` in the project directory before using Neon commands.
+
+For a linked Neon project, install the [Neon CLI](https://neon.com/docs/reference/neon-cli), authenticate with `neon login`, then run `neon init` and `neon deploy`. Neon populates the connection variables in `.env`. Load the dataset with `python -m src.cli run-all --database`; this initializes the PostgreSQL schema on a fresh branch and loads the validated analytics tables. The same ETL command can reload an existing CommerceLens database, replacing its staging and analytics table contents.
+
 ## Other commands
 
 ```bash
 python -m src.cli run-all                 # Process data and generate exports without loading PostgreSQL
 python -m src.cli report --period monthly # Generate the monthly CSV and PDF report
 pytest -q                                 # Run the test suite
+npm run build                             # Compile-check the Python application
 ```
 
 Convenience targets are available through `make install`, `make validate`, `make pipeline`, `make dashboard`, `make test`, and `make report`.

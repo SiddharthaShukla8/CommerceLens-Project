@@ -1,7 +1,7 @@
 """Idempotently replace staging and analytics tables from cleaned outputs."""
 import pandas as pd
 from sqlalchemy import create_engine, text
-from config.settings import DATABASE_CONNECT_TIMEOUT, DATABASE_SSLMODE, DATABASE_URL
+from config.settings import DATABASE_CONNECT_TIMEOUT, DATABASE_SSLMODE, DATABASE_URL_UNPOOLED
 from src.database.schema_manager import apply_migrations
 
 TABLE_MAP = {"customers": "customers", "orders": "orders", "order_items": "order_items", "payments": "payments", "reviews": "reviews", "products": "products", "sellers": "sellers"}
@@ -17,9 +17,9 @@ STAGING_COLUMNS = {
 
 def load_to_postgres(frames: dict[str, pd.DataFrame], mart: pd.DataFrame) -> None:
     connect_args = {"connect_timeout": DATABASE_CONNECT_TIMEOUT}
-    if DATABASE_SSLMODE and not DATABASE_URL.startswith("sqlite"):
+    if DATABASE_SSLMODE and not DATABASE_URL_UNPOOLED.startswith("sqlite"):
         connect_args["sslmode"] = DATABASE_SSLMODE
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5, max_overflow=5, connect_args=connect_args)
+    engine = create_engine(DATABASE_URL_UNPOOLED, pool_pre_ping=True, pool_size=5, max_overflow=5, connect_args=connect_args)
     with engine.begin() as connection:
         apply_migrations(connection)
         for name, table in TABLE_MAP.items():
