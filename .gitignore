@@ -9,6 +9,7 @@ data/processed/*
 data/exports/*
 !data/exports/.gitkeep
 reports/generated/*
+tmp/
 !reports/generated/.gitkeep
 *.log
 .streamlit/secrets.toml

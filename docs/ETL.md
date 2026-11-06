@@ -1,6 +1,6 @@
 # ETL and data-quality workflow
 
-`python -m src.cli run-all --database` acquires an exclusive local run lock, validates every required source file, parses timestamps, cleans data without editing source CSVs, validates relationships, loads PostgreSQL transactionally, and only then publishes processed/analytical exports.
+`python -m src.cli run-all --database` acquires an exclusive local run lock, validates every required source file, parses timestamps, cleans data without editing source CSVs, validates relationships, loads PostgreSQL transactionally, and only then publishes processed/analytical exports. It publishes both an order-grain mart for business KPIs and an item-grain mart for honest product/category drill-downs.
 
 The run metadata records source and cleaned row counts, validation statuses, UTC start/end information, duration, and database-load status. A failed run writes a credential-free failure record and does not mark the run successful.
 

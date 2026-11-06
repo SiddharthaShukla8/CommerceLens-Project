@@ -1,6 +1,6 @@
 # SQL validation report
 
-Validated against the local `commercelens` PostgreSQL database on 2026-11-06. All queries were executed independently to avoid one failed transaction masking later results. `month` aliases in seven files were corrected to `month_start`, because `month` is not accepted as an unquoted alias by the configured PostgreSQL parser.
+Validated against the local `commercelens` PostgreSQL database on 2026-11-06. All queries were executed independently to avoid one failed transaction masking later results. A fresh final-audit execution again returned the row counts below for all 20 files with no SQL errors.
 
 | Query | Business question / concepts | Rows | Duration | Status |
 |---|---|---:|---:|---|

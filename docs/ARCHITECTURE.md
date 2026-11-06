@@ -12,7 +12,7 @@ flowchart LR
   pg --> sql["20 SQL analyses\nPower BI"]
 ```
 
-The ETL command reads raw data without modifying it. Cleaning produces separately exported datasets and a row-level audit summary. Validation verifies key uniqueness, relationships, financial constraints, and missingness. The order mart aggregates order items before combining them with order attributes, so metrics stay at a safe order grain.
+The ETL command reads raw data without modifying it. Cleaning produces separately exported datasets and a row-level audit summary. Validation verifies key uniqueness, relationships, financial constraints, and missingness. The order mart aggregates order items before combining them with order attributes, so metrics stay at a safe order grain. A separate item mart powers product/category drill-downs; it is not used to calculate order-level KPIs.
 
 ## Fact grains
 
