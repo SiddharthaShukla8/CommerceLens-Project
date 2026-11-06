@@ -26,8 +26,9 @@ def load_data(_: tuple[float, ...]):
 
 
 def _reset_filters() -> None:
-    for key in ("purchase_date", "customer_states", "order_statuses"):
-        st.session_state.pop(key, None)
+    st.session_state["global_date_range"] = (st.session_state["_default_min_date"], st.session_state["_default_max_date"])
+    st.session_state["global_customer_states"] = []
+    st.session_state["global_order_statuses"] = []
 
 
 def _sales_summary(items: pd.DataFrame) -> dict[str, float]:
@@ -45,6 +46,10 @@ required_paths = [
 ]
 data = load_data(tuple(path.stat().st_mtime if path.exists() else 0 for path in required_paths))
 
+# Initialize navigation in session_state if not present
+if "dashboard_page" not in st.session_state:
+    st.session_state["dashboard_page"] = "Executive overview"
+
 with st.sidebar:
     st.title("CommerceLens")
     st.caption("E-commerce intelligence platform")
@@ -54,6 +59,7 @@ with st.sidebar:
             "Executive overview", "Sales & products", "Customer intelligence",
             "Operations & delivery", "Geographical analytics", "Experiment analytics", "Data quality",
         ],
+        key="dashboard_page",
     )
     st.divider()
     st.caption("Olist public dataset · independent portfolio project")
@@ -64,8 +70,59 @@ if data is None and page != "Experiment analytics":
     st.code("docker compose up -d\npython -m src.cli run-all --database\nstreamlit run app.py")
     st.stop()
 
+# Extract mart and item_mart if data is present
+mart = None
+item_mart = None
+quality = None
+if data is not None:
+    mart, item_mart, _, _, quality = data
+
+# Initialize global filter defaults
+if mart is not None:
+    min_date = mart.order_purchase_timestamp.min().date()
+    max_date = mart.order_purchase_timestamp.max().date()
+    st.session_state["_default_min_date"] = min_date
+    st.session_state["_default_max_date"] = max_date
+    available_states = sorted(mart.customer_state.dropna().unique())
+    available_statuses = sorted(mart.order_status.dropna().unique())
+else:
+    min_date = pd.Timestamp("2016-01-01").date()
+    max_date = pd.Timestamp("2018-12-31").date()
+    available_states = []
+    available_statuses = []
+
+if "global_date_range" not in st.session_state:
+    st.session_state["global_date_range"] = (min_date, max_date)
+if "global_customer_states" not in st.session_state:
+    st.session_state["global_customer_states"] = []
+if "global_order_statuses" not in st.session_state:
+    st.session_state["global_order_statuses"] = []
+
+# Persistent shared filters in sidebar - rendered unconditionally across all pages
+with st.sidebar:
+    st.divider()
+    st.subheader("Shared filters")
+    selected_range = st.date_input(
+        "Purchase date",
+        min_value=min_date,
+        max_value=max_date,
+        key="global_date_range",
+    )
+    states = st.multiselect(
+        "Customer state",
+        available_states,
+        key="global_customer_states",
+    )
+    statuses = st.multiselect(
+        "Order status",
+        available_statuses,
+        key="global_order_statuses",
+    )
+    st.button("Reset filters", on_click=_reset_filters, use_container_width=True)
+
 if page == "Experiment analytics":
     st.title("Experiment analytics")
+    st.info("Note: Shared Olist filters above do not affect simulated experiment data.")
     st.warning("SIMULATED EXPERIMENT DATA — NOT OBSERVED OLIST BUSINESS RESULTS.")
     result = analyse_experiment(synthetic_experiment())
     cols = st.columns(4)
@@ -79,23 +136,34 @@ if page == "Experiment analytics":
         with column:
             kpi_card(name, value)
     st.plotly_chart(
-        px.bar(result["summary"], x="experiment_group", y="mean", text_auto=".2%", title="Conversion rate by randomized group"),
-        width="stretch", theme=None,
+        px.bar(
+            result["summary"],
+            x="experiment_group",
+            y="mean",
+            text_auto=".2%",
+            title="Conversion rate by randomized group",
+            labels={"experiment_group": "Experiment group", "mean": "Conversion rate"},
+        ),
+        width="stretch",
+        theme=None,
     )
     st.success("Reject the null hypothesis at α = 0.05." if result["significant"] else "Do not reject the null hypothesis at α = 0.05.")
     st.caption(f"95% CI for absolute difference: {result['confidence_interval'][0]:.2%} to {result['confidence_interval'][1]:.2%}. Seeded synthetic checkout experiment; exposed users only.")
     st.stop()
 
-mart, item_mart, _, _, quality = data
-min_date, max_date = mart.order_purchase_timestamp.min().date(), mart.order_purchase_timestamp.max().date()
-with st.sidebar:
-    st.divider()
-    st.subheader("Shared filters")
-    selected_range = st.date_input("Purchase date", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="purchase_date")
-    states = st.multiselect("Customer state", sorted(mart.customer_state.dropna().unique()), key="customer_states")
-    statuses = st.multiselect("Order status", sorted(mart.order_status.dropna().unique()), key="order_statuses")
-    st.button("Reset filters", on_click=_reset_filters, use_container_width=True)
+if page == "Data quality":
+    st.title("Data quality & pipeline monitoring")
+    st.info("Note: System-wide pipeline validation is not restricted by the sales filters.")
+    st.dataframe(quality, width="stretch", hide_index=True)
+    metadata = EXPORT_DIR / "pipeline_metadata.json"
+    if metadata.exists():
+        st.json(metadata.read_text())
+    else:
+        st.info("This dashboard session is using PostgreSQL fallback data. Run the ETL pipeline to publish local pipeline metadata and exports.")
+    st.download_button("Download quality CSV", quality.to_csv(index=False), "data_quality.csv", "text/csv")
+    st.stop()
 
+# For transactional pages: apply filters
 filtered = filter_order_mart(mart, selected_range, states, statuses)
 filtered_items = item_mart[item_mart.order_id.isin(filtered.order_id)]
 delivered = filtered[filtered.order_status.eq("delivered")]
@@ -126,10 +194,40 @@ if page == "Executive overview":
     category = (delivered_items.groupby("category", as_index=False).price.sum()
                 .rename(columns={"price": "gmv"}).nlargest(5, "gmv"))
     left, right = st.columns(2)
-    left.plotly_chart(px.line(monthly, x="month", y="gmv", markers=True, title="Monthly merchandise GMV"), width="stretch", theme=None)
-    right.plotly_chart(px.bar(category, x="gmv", y="category", orientation="h", title="Top categories"), width="stretch", theme=None)
+    fig_monthly = px.line(
+        monthly,
+        x="month",
+        y="gmv",
+        markers=True,
+        title="Monthly merchandise GMV",
+        labels={"month": "Month", "gmv": "GMV (R$)"},
+    )
+    fig_monthly.update_xaxes(type="category")
+    left.plotly_chart(fig_monthly, width="stretch", theme=None)
+    right.plotly_chart(
+        px.bar(
+            category,
+            x="gmv",
+            y="category",
+            orientation="h",
+            title="Top categories",
+            labels={"gmv": "GMV (R$)", "category": "Category"},
+        ),
+        width="stretch",
+        theme=None,
+    )
     status_counts = filtered.groupby("order_status", as_index=False).order_id.nunique()
-    st.plotly_chart(px.bar(status_counts, x="order_status", y="order_id", title="Order-status distribution"), width="stretch", theme=None)
+    st.plotly_chart(
+        px.bar(
+            status_counts,
+            x="order_status",
+            y="order_id",
+            title="Order-status distribution",
+            labels={"order_status": "Order status", "order_id": "Order count"},
+        ),
+        width="stretch",
+        theme=None,
+    )
     st.subheader("Evidence-based actions")
     rfm_current = build_rfm(filtered)
     for insight in generate_insights(filtered, rfm_current):
@@ -144,18 +242,53 @@ elif page == "Sales & products":
     product = st.selectbox("Product", ["All"] + products)
     visual = category_items if product == "All" else category_items[category_items.product_id.eq(product)]
     summary = _sales_summary(visual)
-    sales_cards = [("Merchandise GMV", f"R$ {summary['gmv']:,.0f}", "Selected items"), ("Units sold", f"{summary['units']:,}", "Order-item records"), ("Delivered orders", f"{summary['orders']:,}", "Orders containing selection"), ("Average selling price", f"R$ {summary['average_price']:,.2f}", "Per item")]
+    sales_cards = [
+        ("Merchandise GMV", f"R$ {summary['gmv']:,.0f}", "Selected items"),
+        ("Units sold", f"{summary['units']:,}", "Order-item records"),
+        ("Delivered orders", f"{summary['orders']:,}", "Orders containing selection"),
+        ("Average selling price", f"R$ {summary['average_price']:,.2f}", "Per item"),
+    ]
     for column, item in zip(st.columns(4), sales_cards):
         with column:
             kpi_card(*item)
     daily = visual.assign(date=visual.order_purchase_timestamp.dt.date).groupby("date", as_index=False).price.sum().rename(columns={"price": "gmv"})
-    weekly = visual.assign(week=visual.order_purchase_timestamp.dt.to_period("W").dt.start_time).groupby("week", as_index=False).price.sum().rename(columns={"price": "gmv"})
+    weekly = visual.assign(week=visual.order_purchase_timestamp.dt.to_period("W").dt.start_time.dt.date).groupby("week", as_index=False).price.sum().rename(columns={"price": "gmv"})
     category_totals = (delivered_items.groupby("category", as_index=False).agg(gmv=("price", "sum"), units=("order_item_id", "count"))
                        .sort_values("gmv", ascending=False))
     left, right = st.columns(2)
-    left.plotly_chart(px.line(daily, x="date", y="gmv", title="Daily merchandise GMV"), width="stretch", theme=None)
-    right.plotly_chart(px.line(weekly, x="week", y="gmv", title="Weekly merchandise GMV"), width="stretch", theme=None)
-    st.plotly_chart(px.bar(category_totals.head(15), x="category", y="gmv", title="Category GMV"), width="stretch", theme=None)
+    left.plotly_chart(
+        px.line(
+            daily,
+            x="date",
+            y="gmv",
+            title="Daily merchandise GMV",
+            labels={"date": "Date", "gmv": "GMV (R$)"},
+        ),
+        width="stretch",
+        theme=None,
+    )
+    right.plotly_chart(
+        px.line(
+            weekly,
+            x="week",
+            y="gmv",
+            title="Weekly merchandise GMV",
+            labels={"week": "Week starting", "gmv": "GMV (R$)"},
+        ),
+        width="stretch",
+        theme=None,
+    )
+    st.plotly_chart(
+        px.bar(
+            category_totals.head(15),
+            x="category",
+            y="gmv",
+            title="Category GMV",
+            labels={"category": "Category", "gmv": "GMV (R$)"},
+        ),
+        width="stretch",
+        theme=None,
+    )
     product_table = (visual.groupby(["product_id", "category"], as_index=False).agg(gmv=("price", "sum"), units=("order_item_id", "count"), average_selling_price=("price", "mean"))
                      .sort_values("gmv", ascending=False))
     st.subheader("Product performance")
@@ -179,8 +312,28 @@ elif page == "Customer intelligence":
             kpi_card(*item)
     summary = segment_summary(rfm_current)
     left, right = st.columns(2)
-    left.plotly_chart(px.bar(summary.sort_values("customers", ascending=False), x="segment", y="customers", title="RFM segment distribution"), width="stretch", theme=None)
-    right.plotly_chart(px.histogram(shown, x="monetary", nbins=40, title="Historical customer GMV"), width="stretch", theme=None)
+    left.plotly_chart(
+        px.bar(
+            summary.sort_values("customers", ascending=False),
+            x="segment",
+            y="customers",
+            title="RFM segment distribution",
+            labels={"segment": "Segment", "customers": "Customer count"},
+        ),
+        width="stretch",
+        theme=None,
+    )
+    right.plotly_chart(
+        px.histogram(
+            shown,
+            x="monetary",
+            nbins=40,
+            title="Historical customer GMV",
+            labels={"monetary": "Monetary value (R$)"},
+        ),
+        width="stretch",
+        theme=None,
+    )
     if segment != "All":
         st.info(f"**Recommended action for {segment}:** {SEGMENT_ACTIONS[segment]}")
     st.subheader("Customers in selection")
@@ -206,15 +359,45 @@ elif page == "Operations & delivery":
         with column:
             kpi_card(*item)
     left, right = st.columns(2)
-    left.plotly_chart(px.histogram(delivered, x="delivery_days", nbins=40, title="Delivery duration (days)"), width="stretch", theme=None)
-    right.plotly_chart(px.bar(filtered.groupby("order_status", as_index=False).order_id.nunique(), x="order_status", y="order_id", title="Order-status distribution"), width="stretch", theme=None)
+    left.plotly_chart(
+        px.histogram(
+            delivered,
+            x="delivery_days",
+            nbins=40,
+            title="Delivery duration (days)",
+            labels={"delivery_days": "Delivery days", "count": "Order count"},
+        ),
+        width="stretch",
+        theme=None,
+    )
+    right.plotly_chart(
+        px.bar(
+            filtered.groupby("order_status", as_index=False).order_id.nunique(),
+            x="order_status",
+            y="order_id",
+            title="Order-status distribution",
+            labels={"order_status": "Order status", "order_id": "Order count"},
+        ),
+        width="stretch",
+        theme=None,
+    )
     late = delivered[delivered.on_time.eq(False)][["order_id", "order_purchase_timestamp", "order_estimated_delivery_date", "order_delivered_customer_date", "customer_state"]].copy()
     late["delayed_days"] = (late.order_delivered_customer_date - late.order_estimated_delivery_date).dt.days
     st.subheader("Delayed orders")
     st.dataframe(late.sort_values("delayed_days", ascending=False), width="stretch", hide_index=True)
     sellers = (delivered_items.groupby("seller_id", as_index=False).agg(gmv=("price", "sum"), units=("order_item_id", "count"), orders=("order_id", "nunique"))
                .sort_values("gmv", ascending=False).head(20))
-    st.plotly_chart(px.bar(sellers, x="seller_id", y="gmv", title="Top sellers by delivered GMV"), width="stretch", theme=None)
+    st.plotly_chart(
+        px.bar(
+            sellers,
+            x="seller_id",
+            y="gmv",
+            title="Top sellers by delivered GMV",
+            labels={"seller_id": "Seller ID", "gmv": "GMV (R$)"},
+        ),
+        width="stretch",
+        theme=None,
+    )
 
 elif page == "Geographical analytics":
     st.title("Geographical analytics")
@@ -222,16 +405,26 @@ elif page == "Geographical analytics":
              .agg(orders=("order_id", "nunique"), merchandise_gmv=("merchandise_gmv", "sum"), customers=("customer_unique_id", "nunique"), on_time=("on_time", "mean"), cancellation_rate=("order_status", lambda x: x.eq("canceled").mean()))
              .assign(aov=lambda frame: frame.merchandise_gmv / frame.orders))
     left, right = st.columns(2)
-    left.plotly_chart(px.bar(state.sort_values("merchandise_gmv", ascending=False), x="customer_state", y="merchandise_gmv", title="GMV by customer state"), width="stretch", theme=None)
-    right.plotly_chart(px.bar(state.sort_values("orders", ascending=False), x="customer_state", y="orders", title="Orders by customer state"), width="stretch", theme=None)
+    left.plotly_chart(
+        px.bar(
+            state.sort_values("merchandise_gmv", ascending=False),
+            x="customer_state",
+            y="merchandise_gmv",
+            title="GMV by customer state",
+            labels={"customer_state": "Customer state", "merchandise_gmv": "GMV (R$)"},
+        ),
+        width="stretch",
+        theme=None,
+    )
+    right.plotly_chart(
+        px.bar(
+            state.sort_values("orders", ascending=False),
+            x="customer_state",
+            y="orders",
+            title="Orders by customer state",
+            labels={"customer_state": "Customer state", "orders": "Order count"},
+        ),
+        width="stretch",
+        theme=None,
+    )
     st.dataframe(state.sort_values("merchandise_gmv", ascending=False), width="stretch", hide_index=True)
-
-else:
-    st.title("Data quality & pipeline monitoring")
-    st.dataframe(quality, width="stretch", hide_index=True)
-    metadata = EXPORT_DIR / "pipeline_metadata.json"
-    if metadata.exists():
-        st.json(metadata.read_text())
-    else:
-        st.info("This dashboard session is using PostgreSQL fallback data. Run the ETL pipeline to publish local pipeline metadata and exports.")
-    st.download_button("Download quality CSV", quality.to_csv(index=False), "data_quality.csv", "text/csv")
